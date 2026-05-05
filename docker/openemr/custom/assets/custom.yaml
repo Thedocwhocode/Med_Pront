@@ -1,0 +1,13 @@
+# Med_Pront Custom Theme - Asset Injection Config
+# Formato compativel com OpenEMR 7.0.2 Header::parseConfigFile()
+# Docs: https://github.com/openemr/openemr/blob/master/Documentation/Help%20Files/custom-assets.md
+
+assets:
+    medpront-theme:
+        basePath: '/custom/assets/css/'
+        link: medpront-theme.css
+        autoload: true
+    medpront-enhancements:
+        basePath: '/custom/assets/js/'
+        script: medpront-enhancements.js
+        autoload: true

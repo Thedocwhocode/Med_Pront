@@ -1,0 +1,133 @@
+services:
+  traefik:
+    image: traefik:v3.0
+    restart: unless-stopped
+    networks:
+      - frontend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/traefik.yml:ro
+      - ./traefik/dynamic.yml:/dynamic.yml:ro
+      - traefik_certs:/certs
+    environment:
+      - CF_API_TOKEN=${CF_API_TOKEN}
+      - TRAEFIK_DOMAIN=${TRAEFIK_DOMAIN}
+      - TRAEFIK_EMAIL=${TRAEFIK_EMAIL}
+
+  openemr:
+    image: openemr/openemr:7.0.2
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - doc_data:/var/www/localhost/htdocs/openemr/sites/default/documents
+      - ./openemr/overrides/:/var/www/localhost/htdocs/openemr/sites/default/config/
+      - ./openemr/custom/:/var/www/localhost/htdocs/openemr/custom/
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_ROOT_PASS=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASS=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - OE_USER=${OE_USER}
+      - OE_PASS=${OE_PASS}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.openemr.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.openemr.tls=true"
+      - "traefik.http.routers.openemr.entrypoints=websecure"
+      - "traefik.http.services.openemr.loadbalancer.server.port=80"
+
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --innodb-file-per-table=1
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  integration:
+    build:
+      context: ./integration-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - frontend
+      - backend
+      - egress
+    depends_on:
+      - openemr
+    environment:
+      - OPENEMR_API_URL=${OPENEMR_API_URL}
+      - OPENEMR_CLIENT_ID=${OPENEMR_CLIENT_ID}
+      - OPENEMR_CLIENT_SECRET=${OPENEMR_CLIENT_SECRET}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
+      - WHATSAPP_API_URL=${WHATSAPP_API_URL}
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
+      - WHATSAPP_TEMPLATE_NAME=${WHATSAPP_TEMPLATE_NAME}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - INTEGRATION_SECRET_KEY=${INTEGRATION_SECRET_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.integration.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/internal`)"
+      - "traefik.http.routers.integration.tls=true"
+      - "traefik.http.routers.integration.entrypoints=websecure"
+      - "traefik.http.routers.integration.middlewares=integration-auth@file"
+      - "traefik.http.services.integration.loadbalancer.server.port=8000"
+
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles:
+      - production
+    networks:
+      - frontend
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    depends_on:
+      - traefik
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+  egress:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  doc_data:
+    driver: local
+  traefik_certs:
+    driver: local

@@ -1,0 +1,32 @@
+services:
+  openemr:
+    ports:
+      - "8080:80"
+    environment:
+      - OPENEMR_DEBUG=1
+      - FORCE_INSTALL=1
+    volumes:
+      - ./openemr/layout-forms:/var/www/localhost/htdocs/openemr/contrib/custom-forms
+      - ./openemr/custom/:/var/www/localhost/htdocs/openemr/custom/
+
+  db:
+    ports:
+      - "3306:3306"
+
+  integration:
+    build:
+      context: ./integration-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./integration-service/src:/app/src
+    environment:
+      - DEBUG=1
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  traefik:
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8090:8080"

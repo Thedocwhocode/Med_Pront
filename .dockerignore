@@ -1,0 +1,70 @@
+# Git
+.git/
+.gitignore
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+
+# Docker volumes
+db_data/
+doc_data/
+traefik_certs/
+backup_data/
+volumes/
+
+# Encrypted backups
+*.sql.gz
+*.sql.enc
+*.tar.gz.enc
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.cache/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Specs & docs (not needed in Docker builds)
+specs/
+docs/
+
+# Scripts (not needed in Docker builds)
+scripts/
+
+# Backup scripts
+docker/backup/

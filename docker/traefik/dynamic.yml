@@ -1,0 +1,84 @@
+http:
+  middlewares:
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+        period: 1s
+
+    security-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow"
+          Server: ""
+
+    upload-limit:
+      buffering:
+        maxRequestBodyBytes: 52428800  # 50MB
+
+    integration-auth:
+      basicAuth:
+        usersFile: /run/secrets/integration_auth
+        removeHeader: true
+
+  routers:
+    openemr:
+      rule: "Host(`${TRAEFIK_DOMAIN}`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - rate-limit
+        - security-headers
+      service: openemr
+      tls:
+        certResolver: cloudflare
+
+    integration:
+      rule: "Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/internal`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - rate-limit
+      service: integration
+      tls:
+        certResolver: cloudflare
+
+  services:
+    openemr:
+      loadBalancer:
+        servers:
+          - url: "http://openemr:80"
+        healthCheck:
+          path: /openemr/health/
+          interval: 30s
+          timeout: 10s
+
+    integration:
+      loadBalancer:
+        servers:
+          - url: "http://integration:8000"
+        healthCheck:
+          path: /health
+          interval: 30s
+          timeout: 5s
+
+  serversTransports:
+    default:
+      maxIdleConnsPerHost: 10
+
+tls:
+  options:
+    modern:
+      minVersion: VersionTLS12
+      sniStrict: true
+      cipherSuites:
+        - TLS_AES_128_GCM_SHA256
+        - TLS_AES_256_GCM_SHA384
+        - TLS_CHACHA20_POLY1305_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
